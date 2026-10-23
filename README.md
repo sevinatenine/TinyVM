@@ -4,13 +4,24 @@ TinyVM is a small virtual machine byte code executer, similar to JVM, written in
 There is an ASM compiler to byte code and a C compiler. The C compiler is still under development and is incomplete and buggy.
 ASM development is recommended over C development.
 
-> NOTE: This section assumes that the command for TinyVM is `tinyvm`. You may need to subsitute or alias this to `node src/main.js` if you have not installed this from the NPM package and are instead running it just using NodeJS. 
+> NOTE: This section assumes that the command for TinyVM is `tinyvm`. You may need to substitute or alias this to `node src/main.js` if you have not installed this from the NPM package and are instead running it just using NodeJS.
 
 If you clone this repo, you will need to `npm install`.
 
 ## Using the VM
 
 The VM runs a special bytecode language. However, the NodeJS program can run TinyVM assembly and C directly.
+
+| Command | What it does |
+|---|---|
+| `tinyvm assemble <file.s>` | assemble to bytecode |
+| `tinyvm compile <file.c>` | compile C to bytecode (`-a` / `--asm` writes assembly instead) |
+| `tinyvm run <file.tv>` | run a bytecode file |
+| `tinyvm exec <file.s>` | assemble and run in one step |
+| `tinyvm exec-c <file.c>` | compile, assemble and run in one step |
+| `tinyvm dis <file.tv>` | disassemble a bytecode file (`-n` / `--no-addr` hides addresses) |
+
+`assemble` and `compile` accept `-o <file.tv>` to choose the output name. By default the input extension is dropped and `.tv` is added.
 
 ### ASM programs
 
@@ -23,8 +34,6 @@ Assemble an assembly program to bytecode with:
 ```bash
 tinyvm assemble program.s
 ```
-
-By default, the program will drop the `.s` and add a `.tv` to show it is TinyVM bytecode.
 
 You can run the program with:
 
@@ -42,9 +51,9 @@ tinyvm exec program.s
 
 ## C programs
 
-You can compile C programs directly into byte code or you can turn them into assembly. I used AI to help me with sime of the C compiler because it was very confusing and complicated. (Someone pls make GCC).
+You can compile C programs directly into byte code or you can turn them into assembly. I used AI to help me with some of the C compiler because it was very confusing and complicated. (Someone pls make GCC).
 
-**NOTE:** The c compiler is still under development and lacks multiple C features. It is not a final version and will be modified to be more reliable in the future. It also produces very innefficient code and it is reccomended to make your programs in assembly over C.
+**NOTE:** The C compiler is still under development and lacks multiple C features. It is not a final version and will be modified to be more reliable in the future. It also produces very inefficient code and it is recommended to make your programs in assembly over C.
 
 ### C Features
 
@@ -98,7 +107,7 @@ You can compile C programs directly into byte code or you can turn them into ass
 
 ### Compiling
 
-To compile a c program to byte code, run:
+To compile a C program to byte code, run:
 
 ```bash
 tinyvm compile program.c
@@ -110,7 +119,7 @@ To run it, run:
 tinyvm run program.tv
 ```
 
-> To view the generated assembly, run `tinyvm compile --asm program.c`
+> To view the generated assembly, run `tinyvm compile --asm program.c`. The assembly is written to `program.tv` unless you pass `-o program.s`.
 
 ### For testing
 
@@ -170,6 +179,7 @@ All values hex, multi-byte values big-endian.
 
 Immediates are 32-bit (negatives are two's complement).
 `#&label` loads the address of a label as a 32-bit immediate.
+`#a|#b|...` ORs several immediates together at assembly time (used for flags, e.g. `O_WRITE|O_CREATE`).
 Indexed address = (addr + reg) & FFFF. Addresses can be hex or a label.
 
 #### Machine
@@ -178,7 +188,7 @@ Indexed address = (addr + reg) & FFFF. Addresses can be hex or a label.
 - Word accesses (LOAD, STOR, PUSH, POP, CALL, RET) are 32-bit big-endian.
 - Stack: SP starts at 10000 (wraps to 0000 on access), grows down, 4 bytes per entry.
 - CALL pushes the address of the next instruction.
-- Execution errors: invalid opcode, pc running past FFFF, cycle limit (50M default).
+- Execution errors: invalid opcode, unknown syscall number, pc running past FFFF, cycle limit (50M default).
 
 #### Flags
 
@@ -304,7 +314,7 @@ JCON cond: 0=Z, 1=NZ, 2=C, 3=NC, 4=N
                                   ; R0 - R5 are the inputs and outputs of the syscall
 ```
 
-38-FF: invalid
+39-FF: invalid
 
 ### Syscalls
 
@@ -316,6 +326,7 @@ Programs call into the host with `SYS #n`. The `lib/syscalls.s` library wraps ea
 - **Success:** carry flag clear, result in `R0` (some calls also return values in `R1` and `R2`).
 - **Failure:** carry flag set, error code in `R0`. Check with `JCON C, $label` straight after the call, before any instruction that changes the flags or `R0`.
 - **Strings** are NUL-terminated. A path argument is a pointer to one.
+- **Pointers** are 16 bit. A buffer that runs past the end of memory fails with `E_FAULT`.
 - **Numbers** in assembly are hex: `#a` is 10, `#64` is 100.
 - **Unknown syscall numbers** stop the VM with a runtime error.
 
@@ -336,17 +347,21 @@ Programs call into the host with `SYS #n`. The `lib/syscalls.s` library wraps ea
 
 #### Opening handles
 
-Every open call returns a **handle** (a small number) in `R0`. Handles `0`, `1` and `2` are always open as stdin, stdout and stderr, and new handles are numbered from 3 (up to 63 open at once).
+Every open call returns a **handle** (a small number) in `R0`. Handles `0`, `1` and `2` are always open as stdin, stdout and stderr, and new handles are numbered from 3 (handles go up to 63, so at most 61 can be open at once).
 
 | No. | Name | In | Out |
 |---|---|---|---|
 | `0x10` | `openfile` | `R0` = path, `R1` = flags | `R0` = handle |
-| `0x11` | `opendir` | `R0` = path | not implemented |
+| `0x11` | `opendir` | `R0` = path | `R0` = handle |
 | `0x12` | `opensocket` | `R0` = kind, `R1` = options | not implemented |
 | `0x13` | `openserial` | `R0` = path, `R1` = baud | not implemented |
 | `0x14` | `accept` | `R0` = listening socket | not implemented |
 
+Calls marked "not implemented" always fail with `E_NOSYS`.
+
 **`openfile` errors:** `E_ACCES` (path outside the sandbox), `E_NOENT`, `E_ISDIR` (the path is a directory), `E_MFILE` (too many open handles), plus `E_IO` for anything else.
+
+**`opendir` errors:** `E_ACCES`, `E_NOENT`, `E_NOTDIR` (the path isn't a directory), `E_MFILE`.
 
 **Open flags** are bits, combined with `|`. For example, `O_WRITE|O_CREATE|O_TRUNC` is assembled into one immediate.
 
@@ -357,6 +372,8 @@ Every open call returns a **handle** (a small number) in `R0`. Handles `0`, `1` 
 | `O_CREATE` | `#4` | create the file if it doesn't exist |
 | `O_TRUNC` | `#8` | empty the file when opening |
 | `O_APPEND` | `#10` | every write goes to the end of the file (implies write) |
+| `O_WRITE_NEW` | `#e` | shortcut for `O_WRITE\|O_CREATE\|O_TRUNC` |
+| `O_WRITE_ADD` | `#16` | shortcut for `O_WRITE\|O_CREATE\|O_APPEND` |
 
 With neither `O_READ` nor `O_WRITE`, the file opens read-only. Newly created files get mode `0666` (before the host's umask).
 
@@ -371,15 +388,14 @@ With neither `O_READ` nor `O_WRITE`, the file opens read-only. Newly created fil
 | `0x1E` | `ctl` | `R0` = handle, `R1` = request, `R2` = argument | always fails with `E_INVAL` for now |
 | `0x1F` | `fstat` | `R0` = handle | `R0` = size, `R1` = type, `R2` = modified time (seconds) |
 
-- **`read` may return fewer bytes than asked for.** Reading stdin gives you one line at a time, so loop until you get 0.
+- **`read` may return fewer bytes than asked for.** Reading stdin gives you one line at a time, so loop until you get 0. Handles 1 and 2 can't be read, and handle 0 can't be written (`E_BADF`).
 - **Each file handle keeps its own position,** shared by `read`, `write` and `seek`. Append handles always write at the end.
+- **Directory handles:** each `read` returns one entry name as a NUL-terminated string, with `R0` = the name's length (0 when there are no more entries). `R2` must be at least the name length plus 1, otherwise `E_RANGE`. The list is a snapshot taken when the directory was opened and doesn't include `.` or `..`. `write` fails with `E_ISDIR`. `seek` only supports rewinding (offset `#0`, `SEEK_SET`).
 - **`seek` whence:** `SEEK_SET` (`#0`) from the start, `SEEK_CUR` (`#1`) from the current position, `SEEK_END` (`#2`) from the end. Seeking a terminal fails with `E_SPIPE`. A bad whence or a negative result fails with `E_INVAL`.
-- **`fstat` types:** `FTYPE_FILE` (`#0`), `FTYPE_DIR` (`#1`), `FTYPE_CHAR` (`#2`, a terminal). Terminals report size 0 and time 0.
+- **`fstat` types:** `FTYPE_FILE` (`#0`), `FTYPE_DIR` (`#1`), `FTYPE_CHAR` (`#2`, anything else, such as a terminal). Directories and terminals report size 0; terminals also report time 0.
 - **`close` frees the handle** even if the underlying close reports an error. Files left open when the VM stops are closed automatically.
 
-#### Filesystem (not implemented yet)
-
-These all fail with `E_NOSYS`.
+#### Filesystem
 
 | No. | Name | In | Out |
 |---|---|---|---|
@@ -387,13 +403,17 @@ These all fail with `E_NOSYS`.
 | `0x21` | `unlink` | `R0` = path | |
 | `0x22` | `mkdir` | `R0` = path | |
 | `0x23` | `rmdir` | `R0` = path | |
-| `0x24` | `stat` | `R0` = path | `R0` = size, `R1` = type, `R2` = modified time |
+| `0x24` | `stat` | `R0` = path | `R0` = size, `R1` = type (as `fstat`), `R2` = modified time |
 | `0x25` | `chdir` | `R0` = path | |
-| `0x26` | `getcwd` | `R0` = buffer, `R1` = max length | `R0` = length |
+| `0x26` | `getcwd` | `R0` = buffer, `R1` = max length | `R0` = length (without the NUL) |
+
+- `unlink` removes files, `rmdir` removes empty directories (`E_NOTEMPTY` otherwise), and `mkdir` creates one directory (it does not create parents). `mkdir` fails with `E_EXIST` if the path exists.
+- `getcwd` fails with `E_RANGE` if the path plus its NUL doesn't fit in `R1` bytes. **It returns the real host path,** not a path relative to the sandbox root.
+- `chdir` changes the directory that relative paths are resolved against, and it must stay inside the sandbox.
 
 #### Paths
 
-Paths are resolved against the VM's current directory and kept inside a sandbox root (the directory `node` was started from). A path that leaves the root, such as `../../etc/passwd`, fails with `E_ACCES`.
+Paths are resolved against the VM's current directory and kept inside a sandbox root (the directory `node` was started from). A path that leaves the root, such as `../../etc/passwd`, fails with `E_ACCES`. Symlinks are not resolved, so a symlink inside the root can still point outside it.
 
 #### Error codes
 
@@ -401,7 +421,7 @@ Paths are resolved against the VM's current directory and kept inside a sandbox 
 |---|---|---|
 | `E_NOENT` | 2 | no such file or directory |
 | `E_IO` | 5 | I/O error |
-| `E_BADF` | 9 | bad or closed handle |
+| `E_BADF` | 9 | bad or closed handle, or the operation isn't allowed on it |
 | `E_ACCES` | 13 | permission denied, or path outside the sandbox |
 | `E_FAULT` | 14 | pointer outside memory |
 | `E_EXIST` | 17 | already exists |
@@ -410,10 +430,11 @@ Paths are resolved against the VM's current directory and kept inside a sandbox 
 | `E_INVAL` | 22 | invalid argument |
 | `E_MFILE` | 24 | too many open handles |
 | `E_SPIPE` | 29 | can't seek on this handle |
+| `E_RANGE` | 34 | buffer too small |
 | `E_NOSYS` | 38 | not implemented |
 | `E_NOTEMPTY` | 39 | directory not empty |
 
-Error codes are plain numbers in `R0`, so `PRINT_R_DEC` shows them in decimal.
+Error codes are plain numbers in `R0`, so `PRINT_R_DEC` shows them in decimal. `lib/syscalls.s` defines each name above as a constant (written in hex, e.g. `E_RANGE` is `#22`), so you can compare against them: `CMP R0, E_NOENT`. Errors the host reports that aren't in this list show up as `E_IO`.
 
 #### Assembly wrappers
 
@@ -422,10 +443,12 @@ Each syscall has a function (`sys_name`, registers as in the tables above) and a
 | Macro | Notes |
 |---|---|
 | `SYS_RAND`, `SYS_TIME`, `SYS_TICKS` | no arguments, result in `R0` |
-| `SYS_SLEEP ms` / `SYS_R_SLEEP reg` | milliseconds as an immediate / from a register |
+| `SYS_SLEEP ms` / `SYS_R_SLEEP reg` | milliseconds as an immediate / from a register. These restore `R0` afterwards. |
 | `SYS_DATETIME buffer, utc` | `utc` is `TZ_LOCAL` or `TZ_UTC` |
 | `SYS_MEM_INFO type` | `SYS_MEM_TOTAL`, `SYS_MEM_FREE` or `SYS_MEM_PROCESS` |
 | `SYS_OPEN_FILE path, flags` | `path` is a label, `flags` an immediate |
+| `SYS_OPEN_DIR path` | `path` is a label |
+| `SYS_OPEN_SOCKET kind, options`, `SYS_OPEN_SERIAL path, baud`, `SYS_SOCKET_ACCEPT handle` | not implemented, always fail with `E_NOSYS` |
 | `SYS_READ handle, buffer, length` | `handle` is a register, `buffer` a label, `length` an immediate |
 | `SYS_WRITE handle, buffer, length` | same as `SYS_READ` |
 | `SYS_WRITE_IMM handle, data, length` | like `SYS_WRITE`, but `handle` is an immediate such as `STDOUT` |
@@ -433,13 +456,20 @@ Each syscall has a function (`sys_name`, registers as in the tables above) and a
 | `SYS_SEEK handle, offset, whence` | `handle` is a register, the others immediates |
 | `SYS_CTL handle, request, arg` | `handle` is a register, the others immediates |
 | `SYS_FSTAT handle` | `handle` is a register; results in `R0`, `R1`, `R2` |
+| `SYS_RENAME old, new` | both are labels |
+| `SYS_UNLINK path`, `SYS_MKDIR path`, `SYS_RMDIR path`, `SYS_CHDIR path` | `path` is a label |
+| `SYS_STAT path` | `path` is a label; results in `R0`, `R1`, `R2` |
+| `SYS_GETCWD buffer, max` | `buffer` is a label, `max` an immediate |
 
-The macros save and restore the argument registers they overwrite, but leave `R0` alone since that holds the result. The flags survive, so `JCON C` works straight after a macro. If a length or offset is in a register, set up the registers yourself and call the `sys_*` function instead.
+The macros save and restore the argument registers they overwrite, but leave `R0` alone since that holds the result. The exceptions are `SYS_STAT` and `SYS_FSTAT`, which overwrite `R1` and `R2` because those hold return values. The flags survive, so `JCON C` works straight after a macro. If a length or offset is in a register, set up the registers yourself and call the `sys_*` function instead.
 
 #### Example
 
 ```asm
-    SYS_OPEN_FILE filename, O_WRITE|O_CREATE|O_TRUNC
+%include "lib/syscalls.s"
+%include "lib/io.s"
+
+    SYS_OPEN_FILE filename, O_WRITE_NEW
     JCON C, $fail              ; carry set: R0 = error code
     MOVE R4, R0                ; keep the handle
 
@@ -460,12 +490,30 @@ filename: .string "out.txt"
 message: .string "hello"
 ```
 
+### Standard library
+
+All of these live in `lib/`. Each file starts with a header listing every function and macro, what goes in and out, and which registers it changes.
+
+| File | Contents |
+|---|---|
+| `syscalls.s` | `sys_*` functions and `SYS_*` macros, error codes (`E_*`), `TZ_LOCAL` / `TZ_UTC`, memory types (`SYS_MEM_*`). Includes `files.s`. |
+| `files.s` | open flags (`O_*`), standard handles (`STDIN`, `STDOUT`, `STDERR`), `SEEK_*`, `FTYPE_*` |
+| `io.s` | `puts`, `println`, `printchar`, `printhex`, `printdec`, `getc`, `readline`, `strlen`, `strcmp`, `atoi`, `itoa`, `divmod10`, and the `PRINT*` / `READ_LINE` / `STRLEN` / `STRCMP` macros |
+| `datetime.s` | `PRINT_DATETIME` macro. Include `syscalls.s` and `io.s` first. On failure it jumps to a label called `fail`, which your program must define. |
+| `util.s` | `REPEAT` macro (uses `R5`) |
+
+Libraries have no include guards. Include each file once only (`syscalls.s` already includes `files.s`), otherwise the assembler reports a duplicate definition.
+
 ### Assembler syntax
 
 - `;` starts a comment.
 - `label:` defines a label (can share a line with an instruction).
-- `.string "text"` emits UTF-8 bytes plus a 0 terminator (JSON string escapes allowed).
-- You can `%include "filename"` and it will insert the contents of the file wherever the include statement is
+- `.string "text"` emits UTF-8 bytes plus a 0 terminator (JSON string escapes allowed). A `;` inside the string is treated as the start of a comment, so avoid it.
+- `.space n` emits `n` zero bytes (`n` is decimal).
+- `%include "filename"` inserts the contents of the file wherever the include statement is. The path is relative to the file that contains the include, and circular includes are an error.
+- `%define NAME value` replaces `NAME` with `value` everywhere after it (not inside strings). A name can only be defined once, and register, condition and instruction names are reserved.
+- `%macro NAME param1, param2` ... `%endmacro` defines a macro, used like an instruction: `NAME arg1, arg2`. Parameters are replaced by the arguments as text. A name starting with `@` inside the body (such as `@loop`) becomes a label that is unique for each use. Macros can call other macros, but can't be nested inside each other.
+- Includes are expanded first, then macros, then defines.
 - Mnemonics and register/condition names are case-insensitive.
 - Numbers are always hex, with no prefix (`#FF`, `#-1`, `$1F00`).
 - A name that matches a label is resolved as the label first, so a label like `ABC` shadows the hex value ABC.

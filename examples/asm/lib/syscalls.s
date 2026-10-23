@@ -1,3 +1,91 @@
+; ============================================================
+;  lib/syscalls.s: wrappers for the SYS instruction
+; ============================================================
+;
+;  Every syscall has a function (sys_name, CALL it) and a macro
+;  (SYS_NAME). The function takes its arguments in registers;
+;  the macro loads them from its operands first.
+;
+;  Calling convention
+;      args:     R0, R1, R2, in the order listed below
+;      success:  carry clear, result in R0
+;      failure:  carry set, error code in R0 (E_* below)
+;      Test with JCON C, $label straight after the call.
+;
+;  Macro operands
+;      path / buffer / data   a label (passed as its address)
+;      handle                 a register (SYS_WRITE_IMM: an immediate)
+;      everything else        an immediate, e.g. #5
+;  For a pointer or length that is in a register, load R0-R2
+;  yourself and CALL the sys_ function.
+;
+;  Macros save and restore the argument registers they
+;  overwrite. R0 is left alone because it holds the result.
+;  The exceptions are SYS_SLEEP, which restores R0 too, and
+;  SYS_STAT / SYS_FSTAT, which return values in R1 and R2.
+;  Flags survive, so the carry test works after a macro.
+;
+;  Pointers are 16 bit: one that runs past the end of memory
+;  fails with E_FAULT. Strings are NUL-terminated. Paths are
+;  relative to the current directory and must stay inside the
+;  directory the VM was started from (else E_ACCES).
+;
+; ------------------------------------------------------------
+;  System
+;
+;  SYS_RAND                          R0 = random 32-bit number
+;  SYS_TIME                          R0 = unix time, seconds
+;  SYS_SLEEP ms                      sleep (max 10000 ms per call);
+;  SYS_R_SLEEP reg                   same, ms from a register
+;  SYS_TICKS                         R0 = ms since VM start (wraps at 2^32)
+;  SYS_DATETIME buffer, utc          fill 8-byte buffer; utc = TZ_LOCAL
+;                                    or TZ_UTC; R0 = 8
+;                                    buffer: year (u16 big-endian), month,
+;                                    day, hour, minute, second, weekday
+;                                    (0 = Sunday)
+;  SYS_MEM_INFO type                 R0 = MiB; type = SYS_MEM_TOTAL,
+;                                    SYS_MEM_FREE or SYS_MEM_PROCESS
+;
+;  Opening handles (R0 = new handle; handles 0-2 are stdin/out/err,
+;  at most 64 handles open at once, else E_MFILE)
+;
+;  SYS_OPEN_FILE path, flags         flags: see files.s
+;  SYS_OPEN_DIR path
+;  SYS_OPEN_SOCKET kind, options     not implemented (E_NOSYS)
+;  SYS_OPEN_SERIAL path, baud        not implemented (E_NOSYS)
+;  SYS_SOCKET_ACCEPT handle          not implemented (E_NOSYS)
+;
+;  Operations on handles
+;
+;  SYS_READ handle, buffer, length   R0 = bytes read, 0 = end of file
+;                                    (a directory handle returns one
+;                                    NUL-terminated name per call,
+;                                    R0 = its length, E_RANGE if the
+;                                    buffer is too small)
+;  SYS_WRITE handle, buffer, length  R0 = bytes written
+;  SYS_WRITE_IMM handle, data, len   same, with an immediate handle
+;                                    such as STDOUT
+;  SYS_CLOSE handle                  frees the handle even on error
+;  SYS_SEEK handle, offset, whence   offset is signed; R0 = new position
+;                                    (directories: only 0, SEEK_SET
+;                                    to rewind; terminals: E_SPIPE)
+;  SYS_CTL handle, request, arg      no requests yet: E_INVAL
+;  SYS_FSTAT handle                  R0 = size, R1 = type (FTYPE_*),
+;                                    R2 = modified time, seconds
+;
+;  Filesystem
+;
+;  SYS_RENAME old, new
+;  SYS_UNLINK path
+;  SYS_MKDIR path
+;  SYS_RMDIR path
+;  SYS_STAT path                     R0 = size, R1 = type, R2 = mtime
+;  SYS_CHDIR path
+;  SYS_GETCWD buffer, max            R0 = length, not counting the NUL
+;                                    (E_RANGE if max is too small).
+;                                    This is the real host path.
+; ============================================================
+
 %include "files.s"
 
     JUMP $_syscalls_end
@@ -33,6 +121,24 @@
     %define SYS_MEM_TOTAL   #0
     %define SYS_MEM_FREE    #1
     %define SYS_MEM_PROCESS #2
+
+    %define E_NOENT    #2
+    %define E_IO       #5
+    %define E_BADF     #9
+    %define E_ACCES    #d
+    %define E_FAULT    #e
+    %define E_EXIST    #11
+    %define E_NOTDIR   #14
+    %define E_ISDIR    #15
+    %define E_INVAL    #16
+    %define E_MFILE    #18
+    %define E_SPIPE    #1d
+    %define E_RANGE    #22
+    %define E_NOSYS    #26
+    %define E_NOTEMPTY #27
+
+    %define TZ_LOCAL  #0
+    %define TZ_UTC    #1
 
 sys_rand:
     SYS SYSNO_RAND

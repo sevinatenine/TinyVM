@@ -1,12 +1,12 @@
 ; ============================================================
-;  lib/io.s: console I/O
+;  lib/io.s: console I/O, strings and number conversion
 ; ============================================================
 ;
 ;  "uses" lists the registers the caller should expect to be
 ;  changed. Every other register is saved and restored.
 ;  Flags (Z/N/C) are NOT preserved by anything in here.
 ;
-;  puts        Print a null-terminated string.
+;  puts        Print a null-terminated string (no newline).
 ;      in:     R0  = pointer to string
 ;      out:    (none)
 ;      uses:   R0
@@ -21,7 +21,8 @@
 ;      out:    (none)
 ;      uses:   R0
 ;
-;  printhex    Print a value as 0xXXXXXXXX, then a newline.
+;  printhex    Print a value as 0xXXXXXXXX (8 lowercase digits,
+;              no newline).
 ;      in:     R0  = 32-bit value
 ;      out:    (none)
 ;      uses:   (none)
@@ -39,6 +40,9 @@
 ;  readline    Read a line into a buffer; stops at newline,
 ;              EOF, or when the limit is reached. NUL-terminates.
 ;              The newline is consumed but not stored. CR is ignored.
+;              If the limit is hit first, the rest of the line is
+;              left unread. EOF with no input returns 0, same as
+;              an empty line.
 ;      in:     R0  = pointer to buffer (needs R1 + 1 bytes)
 ;              R1  = max characters to read
 ;      out:    R0  = number of characters read
@@ -53,6 +57,26 @@
 ;      in:     R0  = pointer to str0
 ;              R1  = pointer to str1
 ;      out:    R0  = 0 if equal, nonzero if different
+;                    (the difference of the first mismatching bytes)
+;      uses:   R0, R1
+;
+;  atoi        Parse an unsigned decimal number. Stops at the
+;              first non-digit. No sign, no leading spaces,
+;              overflow wraps.
+;      in:     R0  = pointer to string
+;      out:    R0  = value
+;      uses:   R0
+;
+;  divmod10    Divide by 10 (32 step shift-subtract).
+;      in:     R0  = n
+;      out:    R0  = n / 10
+;              R1  = n % 10
+;      uses:   R0, R1
+;
+;  itoa        Write an unsigned decimal number as a string.
+;      in:     R0  = value
+;              R1  = pointer to buffer (needs 11 bytes)
+;      out:    R0  = number of digits (excluding the NUL)
 ;      uses:   R0, R1
 ;
 ; ------------------------------------------------------------
@@ -68,9 +92,12 @@
 ;  PRINT_DEC #n          print a number in decimal    (preserves R0)
 ;  PRINT_R_DEC reg       print a register in decimal  (preserves R0)
 ;  GET_CHAR              R0 = next character
-;  READ_LINE buf, #max   R0 = chars read              (preserves R1)
+;  READ_LINE label, #max R0 = chars read              (preserves R1)
 ;  STRLEN label          R0 = length of string        (R0 clobbered)
 ;  STRCMP label, label   R0 = 0 if equal              (preserves R1)
+;
+;  atoi, divmod10 and itoa have no macros: load the registers
+;  and CALL them.
 ; ============================================================
 
     JUMP $_io_end

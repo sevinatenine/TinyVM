@@ -112,13 +112,13 @@ const INSTRUCTIONS = {
 /*
 0x01 RAND      out: R0 = 32-bit random number
 0x02 TIME      out: R0 = unix time in seconds
-0x03 SLEEP     in:  R0 = unix time in milliseconds
+0x03 SLEEP     in:  R0 = delay in milliseconds (cap is 10,000)
 0x04 TICKS     out: R0 = milliseconds since VM start (wraps at 2^32)
 0x05 DATETIME  in:  R0 = pointer to an 8-byte buffer, R1 = 0 local / 1 UTC
                out: R0 = 8 on success, carry set on failure
                buffer: year (u16, big-endian), month (1-12), day (1-31),
                        hour, minute, second, weekday (0 = Sunday)
-0x06 MEM_INFO  in: R1 = type (0: SYS_MEM_TOTAL, 1: SYS_MEM_CURRENT, 2: SYS_MEM_PROCESS)
+0x06 MEM_INFO  in: R1 = type (0: SYS_MEM_TOTAL, 1: SYS_MEM_FREE, 2: SYS_MEM_PROCESS)
                out: R0 = the memory
 */
 
@@ -142,7 +142,7 @@ const E_RANGE = 34;
 const ERRNO = {
     ENOENT: E_NOENT, EEXIST: E_EXIST, EISDIR: E_ISDIR, ENOTDIR: E_NOTDIR,
     EACCES: E_ACCES, EPERM: E_ACCES, EMFILE: E_MFILE, EBADF: E_BADF,
-    EINVAL: E_INVAL, ESPIPE: E_SPIPE, ENOTEMPTY: E_NOTEMPTY, E_RANGE: E_RANGE
+    EINVAL: E_INVAL, ESPIPE: E_SPIPE, ENOTEMPTY: E_NOTEMPTY, ERANGE: E_RANGE
 };
 
 const withPath = (reg, fn) => (vm) => {

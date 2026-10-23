@@ -1,7 +1,27 @@
-JUMP $_datetime_end
+; ============================================================
+;  lib/datetime.s: print the current date and time
+; ============================================================
+;
+;  Needs syscalls.s and io.s to be included BEFORE this file.
+;
+;  PRINT_DATETIME    print the local time as Y-M-D h:m:s
+;
+;      out:    carry set on failure, carry clear on success
+;      uses:   R0, R1, flags
+;      note:   on failure it JUMPs to a label called "fail", so
+;              your program must define one (no zero padding:
+;              2026-10-5 9:3:7)
+;
+;  The raw fields are left in memory for you to read with LOADB:
+;
+;      dt_year_hi, dt_year_lo (u16, big-endian), dt_month,
+;      dt_day, dt_hour, dt_minute, dt_second, dt_weekday
+;      (0 = Sunday). "dt" is the address of the whole 8 byte buffer.
+;
+;  Use SYS_DATETIME dt, TZ_UTC (or TZ_LOCAL) to fill it yourself.
+; ============================================================
 
-%define TZ_LOCAL  #0
-%define TZ_UTC    #1
+JUMP $_datetime_end
 
 %macro PRINT_DATETIME
 
