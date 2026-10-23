@@ -1,3 +1,5 @@
+; Number printing examples
+
     LOAD R0, #0A ; Load 10
 
 loop:   

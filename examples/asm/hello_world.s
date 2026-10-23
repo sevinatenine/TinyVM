@@ -1,16 +1,18 @@
+; Simple example of printing hello world with a null terminated string loop
+
     CALL $print
     HALT
     
 print:
-    LOAD R1, #0 ; Init index with zero
+    LOAD R1, #0
 loop:
-    LOADB R0, $message + R1 ; Load R0 with the char
-    CMP R0, #0 ; If its zero
-    JCON Z, $end_print ; Then exit
-    OUT R0 ; Print the char
-    ADD R1, #1 ; Incriment the index
-    JUMP $loop ; Loop
+    LOADB R0, $message + R1
+    CMP R0, #0
+    JCON Z, $end_print
+    OUT R0
+    ADD R1, #1
+    JUMP $loop
 end_print:
-    RET ; Return
+    RET
 
 message: .string "Hello, World!\n"

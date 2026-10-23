@@ -38,7 +38,7 @@ program
     .description('assembles an assembly file to a TinyVM binary')
     .option('-o, --out <filename.tv>', 'output file name')
     .action((filename, options) => guarded(() => {
-        const binary = assemble(readFile(filename, 'utf8'));
+        const binary = assemble(readFile(filename, 'utf8'), resolve(filename));
         const out = options.out ?? path.basename(filename, path.extname(filename)) + '.tv';
 
         fs.writeFileSync(resolve(out), binary);
@@ -53,7 +53,7 @@ program
     .option('-o, --out <filename.tv>', 'output file name')
     .action((filename, options) => guarded(() => {
         const assembly = generateAssembly(readFile(filename, 'utf8'));
-        var output = options.asm ? assembly : assemble(assembly);
+        var output = options.asm ? assembly : assemble(assembly, resolve(filename));
 
         const out = options.out ?? path.basename(filename, path.extname(filename)) + '.tv';
         fs.writeFileSync(resolve(out), output);
@@ -69,12 +69,12 @@ program
 program
     .command('exec <filename>')
     .description('assembles and runs a TinyVM assembly file')
-    .action((filename) => guarded(() => run(assemble(readFile(filename, 'utf8')))));
+    .action((filename) => guarded(() => run(assemble(readFile(filename, 'utf8'), resolve(filename)))));
 
 program
     .command('exec-c <filename>')
     .description('compiles, assembles and runs a c file')
-    .action((filename) => guarded(() => run(assemble(generateAssembly(readFile(filename, 'utf8'))))));
+    .action((filename) => guarded(() => run(assemble(generateAssembly(readFile(filename, 'utf8')), resolve(filename)))));
 
 program
     .command('dis <filename>')
