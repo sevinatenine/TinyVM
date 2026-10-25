@@ -8,6 +8,35 @@ ASM development is recommended over C development.
 
 If you clone this repo, you will need to `npm install`.
 
+## Installing
+
+### From npm
+
+Run it without installing anything:
+
+```bash
+npx tinyvm example asm/hello_world
+```
+
+Or install it globally to get the `tinyvm` command:
+
+```bash
+npm install -g tinyvm
+tinyvm examples                     # list bundled examples
+tinyvm example asm/hello_world
+```
+
+### From GitHub
+
+```bash
+git clone https://github.com/sevinatenine/TinyVM
+cd TinyVM
+npm install
+node src/main.js example asm/hello_world
+```
+
+To get the `tinyvm` command from your clone, run `npm link` once.
+
 ## Using the VM
 
 The VM runs a special bytecode language. However, the NodeJS program can run TinyVM assembly and C directly.
@@ -15,6 +44,8 @@ The VM runs a special bytecode language. However, the NodeJS program can run Tin
 | Command | What it does |
 |---|---|
 | `tinyvm assemble <file.s>` | assemble to bytecode |
+| `tinyvm examples` | lists examples |
+| `tinyvm example <example_name>` | runs an example |
 | `tinyvm compile <file.c>` | compile C to bytecode (`-a` / `--asm` writes assembly instead) |
 | `tinyvm run <file.tv>` | run a bytecode file |
 | `tinyvm exec <file.s>` | assemble and run in one step |
