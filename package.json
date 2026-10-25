@@ -2,10 +2,10 @@
   "name": "tinyvm",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "bin": { "tinyvm": "src/main.js" },
+  "main": "src/code.js",
+  "exports": { ".": "./src/code.js", "./package.json": "./package.json" },
+  "files": ["src", "lib", "examples", "README.md"],
   "keywords": [],
   "author": "",
   "license": "ISC",
