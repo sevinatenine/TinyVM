@@ -1,17 +1,19 @@
 {
   "name": "tinyvm",
   "version": "1.0.0",
-  "description": "",
   "bin": { "tinyvm": "src/main.js" },
   "main": "src/code.js",
   "exports": { ".": "./src/code.js", "./package.json": "./package.json" },
   "files": ["src", "lib", "examples", "README.md"],
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "module",
   "dependencies": {
     "commander": "^15.0.0",
     "node-c-parser": "^1.0.11"
-  }
+  },
+  "description": "A tiny 32-bit bytecode VM with an assembler, C compiler, and disassembler",
+  "license": "MIT",
+  "keywords": ["vm", "bytecode", "assembler", "compiler", "emulator"],
+  "author": "Simon",
+  "repository": { "type": "git", "url": "git+https://github.com/sevinatenine/TinyVM.git" },
+  "homepage": "https://github.com/sevinatenine/TinyVM#readme"
 }
